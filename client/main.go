@@ -22,21 +22,16 @@ func main() {
 	}
 
 	for {
-		// when connections are opened several times in
-		// - a reconciler
-		// - long running (the connections will close when the program ends
 		resp, err := call(address)
 		if err != nil {
 			fmt.Printf("could not make call %s\n", err)
+			continue
 		}
 
 		fmt.Println(resp.Result)
 	}
 }
 
-// the connection has to be opened/closed in a func not directly in the loop because the defer
-// is only called when a func closes, so if the loop does not end it never gets there
-// start with it in the loop then move it
 func call(address string) (*proto.RandomNumberResponse, error) {
 	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
