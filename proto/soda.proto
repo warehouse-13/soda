@@ -1,0 +1,15 @@
+syntax = "proto3";
+package soda;
+option go_package = "github.com/warehouse-13/soda/proto";
+
+service SodaService {
+  rpc RandomNumber(RandomNumberRequest) returns (RandomNumberResponse) {}
+}
+
+message RandomNumberRequest {
+  int32 n = 1;
+}
+
+message RandomNumberResponse {
+  uint32 result = 1;
+}
