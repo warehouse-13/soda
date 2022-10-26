@@ -8,55 +8,61 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.io/warehouse-13/soda/proto"
 	"google.golang.org/grpc"
+
+	"net/http"
+	_ "net/http/pprof"
 )
 
 func main() {
-	var port string
+	var (
+		servicePort string
+		pprofPort   string
+	)
 
-	flag.StringVar(&port, "port", "1430", "port to start server on")
+	flag.StringVar(&servicePort, "port", "1430", "port to start service on")
+	flag.StringVar(&pprofPort, "pprof", "1431", "port to start pprof on")
 	flag.Parse()
 
-	l, err := net.Listen("tcp", ":"+port)
-	if err != nil {
-		fmt.Printf("Failed to listen on localhost:%s, %s", port, err)
-		os.Exit(1)
-	}
-
-	s := newServer()
-
-	grpcServer := grpc.NewServer()
-	proto.RegisterSodaServiceServer(grpcServer, &s)
-
-	errChan := make(chan error)
 	stopChan := make(chan os.Signal)
 	signal.Notify(stopChan, syscall.SIGTERM, syscall.SIGINT)
+	ctx, cancel := context.WithCancel(context.Background())
+	wg := &sync.WaitGroup{}
 
 	fmt.Println("starting Soda Service")
+	wg.Add(1)
 	go func() {
-		if err := grpcServer.Serve(l); err != nil {
-			fmt.Printf("failed to start service: %s", err)
-			errChan <- err
+		defer func() {
+			wg.Done()
+		}()
+
+		if err := runSoda(ctx, servicePort); err != nil {
+			fmt.Printf("failed to start service %s", err)
 		}
 	}()
+	fmt.Println("running on port " + servicePort)
 
-	defer func() {
-		grpcServer.GracefulStop()
+	fmt.Println("starting pprof server")
+	wg.Add(1)
+	go func() {
+		defer func() {
+			wg.Done()
+		}()
+
+		if err := runPProf(ctx, pprofPort); err != nil {
+			fmt.Printf("failed to start pprof: %s", err)
+		}
 	}()
+	fmt.Println("running on port " + pprofPort)
 
-	fmt.Println("running on port " + port)
-
-	select {
-	case err := <-errChan:
-		fmt.Printf("server received fatal error: %s", err)
-		os.Exit(1)
-	case <-stopChan:
-		fmt.Println("service stopped, finishing last request")
-	}
+	<-stopChan
+	cancel()
+	wg.Wait()
 }
 
 type server struct {
@@ -74,4 +80,50 @@ func (s server) RandomNumber(ctx context.Context, req *proto.RandomNumberRequest
 	return &proto.RandomNumberResponse{
 		Result: rand.Uint32(),
 	}, nil
+}
+
+func runSoda(ctx context.Context, port string) error {
+	s := newServer()
+	grpcServer := grpc.NewServer()
+	defer func() {
+		fmt.Println("service stopped, finishing last request")
+		grpcServer.GracefulStop()
+	}()
+
+	proto.RegisterSodaServiceServer(grpcServer, &s)
+
+	l, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		grpcServer.Serve(l)
+	}()
+
+	<-ctx.Done()
+
+	return nil
+}
+
+func runPProf(ctx context.Context, port string) error {
+	srv := &http.Server{
+		Addr:    "localhost:" + port,
+		Handler: http.DefaultServeMux,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("could not start pprof %s", err)
+		}
+	}()
+
+	<-ctx.Done()
+	fmt.Println("pprof server stopped")
+
+	if err := srv.Shutdown(context.Background()); err != nil {
+		fmt.Printf("pprof shutdown failed %s", err)
+	}
+
+	return nil
 }
