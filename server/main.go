@@ -17,7 +17,7 @@ import (
 
 	"net/http"
 
-	// This is all you need to add to register a debug endpoint on whatever http
+	// This is all you need to add a debug endpoint on whatever http
 	// server you have running.
 	// See here for more details https://pkg.go.dev/net/http/pprof
 	_ "net/http/pprof"

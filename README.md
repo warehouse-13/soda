@@ -18,7 +18,7 @@ cd soda
 make build
 ```
 
-In one window, start the service and the [pprof][service]:
+In one window, start the service and the [pprof][pprof] service:
 ```bash
 ./srv
 ```
