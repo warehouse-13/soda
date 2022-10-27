@@ -38,10 +38,11 @@ func main() {
 
 // call will create a new conection to the service, create a client with
 // that connection, then calls an endpoint on the service.
-// What we are emulating here is a long running process which repeats this process
+// What we are emulating here is a long running process which repeats these steps
 // on every reconcile/action. If the connection were established once before the
 // long running process began (ie before the loop above), then we would not encounter
-// the error.
+// the error. Checkout to branch single-conn for what I mean by this.
+//
 // Similarly, if this connection/create/call process was not abstracted into a func,
 // and was instead called directly in the for loop, the fix of adding a defer conn.Close()
 // would not have the desired effect. A defer is only called upon a function's exit.

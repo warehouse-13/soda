@@ -55,7 +55,7 @@ This is what happens when you do not close client connections.
 
 If you stop either the client or the server the connections will be closed. This is
 fine for a test like this, or for short-lived programs which exit immediately after call,
-but not ideal for long running services.
+but not ideal for long running services which do not reuse a single connection.
 
 ### Fix it
 
@@ -71,8 +71,15 @@ Uncomment the following line:
 Restart everything. This time you will see that connections and goroutines
 stay at a reasonable level.
 
+### Learn more
+
 There are more notes in the code itself as well as some branches showing progression
 of the solve.
+
+- `no-call` branch shows what happens if you try to `defer conn.Close()` in the parent
+	long-running process (ie, the func never exits, the defer is never called).
+- `single-conn` branch shows how this issue may have gone unnoticed had we opened
+	a single connection and reused it for all requests in the loop.
 
 [bug]: https://github.com/weaveworks-liquidmetal/flintlock/issues/503
 [blog]: https://cbctl.dev/blog/close-grpc-connections
