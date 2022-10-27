@@ -26,7 +26,24 @@ func main() {
 	// sent. This is fine for the purpose of this repro, as it is not meant to be
 	// exemplary code.
 	for {
-		resp, err := call(address)
+		// Here we are opening the connection, creating the client, and calling the service
+		// all from within the long running process.
+		// This means that the defer conn.Close() is ineffective and the bug will not be
+		// solved.
+		// A defer is called just before a function exits. The function in this case
+		// is main, and it does not exit until this for loop is finished. As there is
+		// no way for this loop to finish (it would require a ctrl-c to cancel
+		// it and exit the program), the defer can never be called and the connections
+		// on the service will stay open.
+		conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			fmt.Printf("could not open connection to server at %s. err: %s\n", address, err)
+		}
+		defer conn.Close()
+
+		client := proto.NewSodaServiceClient(conn)
+
+		resp, err := client.RandomNumber(context.Background(), &proto.RandomNumberRequest{})
 		if err != nil {
 			fmt.Printf("could not make call %s\n", err)
 			continue
@@ -34,29 +51,4 @@ func main() {
 
 		fmt.Println(resp.Result)
 	}
-}
-
-// call will create a new conection to the service, create a client with
-// that connection, then calls an endpoint on the service.
-// What we are emulating here is a long running process which repeats this process
-// on every reconcile/action. If the connection were established once before the
-// long running process began (ie before the loop above), then we would not encounter
-// the error.
-// Similarly, if this connection/create/call process was not abstracted into a func,
-// and was instead called directly in the for loop, the fix of adding a defer conn.Close()
-// would not have the desired effect. A defer is only called upon a function's exit.
-// If this was all happening directly inside the for loop, then the defer would never
-// be called because main has not extited, and the connections would remain open.
-//
-// Checkout to branch no-call to see what I mean here.
-func call(address string) (*proto.RandomNumberResponse, error) {
-	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		fmt.Printf("could not open connection to server at %s. err: %s\n", address, err)
-	}
-	// defer conn.Close()
-
-	client := proto.NewSodaServiceClient(conn)
-
-	return client.RandomNumber(context.Background(), &proto.RandomNumberRequest{})
 }
