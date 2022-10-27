@@ -1,6 +1,6 @@
 ## soda
 
-This is an educational repo of [this bug][bug] in flintlock.
+This is an educational repo to explain and reproduce [this bug][bug] in flintlock.
 
 A blog write up exists [here][blog], but this is a repo with a little more explanation
 about why we saw this error in Liquid Metal.
@@ -18,14 +18,14 @@ cd soda
 make build
 ```
 
-In one window, start the service:
+In one window, start the service and the [pprof][service]:
 ```bash
 ./srv
 ```
 
-In another, start watching for connections:
+In another, start watching for established connections on the server port `1430`:
 ```bash
-netstat -a | awk '/:1430/ && /ESTABLISHED/' | wc -l
+watch -n 0.1 "netstat -a | awk '/:1430/ && /ESTABLISHED/' | wc -l"
 ```
 
 Open your browser to http://localhost:1431/debug/pprof/.
@@ -42,7 +42,7 @@ In the `netstat` window, you will see the number ticking up. How high it gets de
 on whatever open connection limit you have on your machine.
 
 In the browser if you refresh it, you will see that the number of `goroutines` has
-jumped by a couple of thousands.
+jumped by a couple of thousand.
 
 Eventually you will see the client get stuck for a bit and then return this error:
 ```
@@ -54,7 +54,8 @@ could not make call rpc error: code = Unavailable desc = failed to receive serve
 This is what happens when you do not close client connections.
 
 If you stop either the client or the server the connections will be closed. This is
-fine for a test like this, but not ideal for long running services.
+fine for a test like this, or for short-lived programs which exit immediately after call,
+but not ideal for long running services.
 
 ### Fix it
 
@@ -70,6 +71,10 @@ Uncomment the following line:
 Restart everything. This time you will see that connections and goroutines
 stay at a reasonable level.
 
+There are more notes in the code itself as well as some branches showing progression
+of the solve.
+
 [bug]: https://github.com/weaveworks-liquidmetal/flintlock/issues/503
 [blog]: https://cbctl.dev/blog/close-grpc-connections
 [tmux]: https://gist.github.com/Callisto13/b4cc217ca4f1c2f7f51405d62b941adb
+[pprof]: https://pkg.go.dev/net/http/pprof
